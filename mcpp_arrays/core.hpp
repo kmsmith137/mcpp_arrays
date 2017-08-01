@@ -24,7 +24,7 @@ constexpr int max_allowed_ndim = 100;
 
 
 enum mcpp_typeid {
-    MCPP_INT8 = 0,
+    MCPP_INT8 = 0,    // must be first
     MCPP_INT16 = 1,
     MCPP_INT32 = 2,
     MCPP_INT64 = 3,
@@ -35,7 +35,8 @@ enum mcpp_typeid {
     MCPP_FLOAT32 = 8,
     MCPP_FLOAT64 = 9,
     MCPP_COMPLEX64 = 10,
-    MCPP_COMPLEX128 = 11
+    MCPP_COMPLEX128 = 11,
+    MCPP_INVALID = 12   // must be last
 };
 
 
@@ -63,7 +64,7 @@ struct malloc_reaper : public mcpp_array_reaper {
 
 inline bool mcpp_typeid_is_valid(mcpp_typeid id)
 {
-    return (id >= MCPP_INT8) && (id <= MCPP_COMPLEX128);
+    return (id >= MCPP_INT8) && (id < MCPP_INVALID);
 }
 
 inline const char *mcpp_typestr(mcpp_typeid id)
@@ -82,6 +83,7 @@ inline const char *mcpp_typestr(mcpp_typeid id)
 	case MCPP_FLOAT64: return "MCPP_FLOAT64";
 	case MCPP_COMPLEX64: return "MCPP_COMPLEX64";
 	case MCPP_COMPLEX128: return "MCPP_COMPLEX128";
+	case MCPP_INVALID: return "MCPP_INVALID";
     }
 
     return "invalid mcpp_arrays::mcpp_typeid";
@@ -210,8 +212,7 @@ inline void check_dtype<void> (mcpp_typeid dtype, const char *where)
 	std::stringstream ss;
 	ss << (where ? where : "mcpp_arrays")
 	   << ": invalid mcpp_arrays::mcpp_typeid " << dtype;
-	throw std::runtime_error(ss.str());
-	
+	throw std::runtime_error(ss.str());	
     }
 }
 
