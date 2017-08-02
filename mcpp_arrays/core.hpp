@@ -111,9 +111,10 @@ inline ssize_t mcpp_sizeof<void> (mcpp_typeid id)
 	case MCPP_FLOAT64: return 8;
 	case MCPP_COMPLEX64: return 8;
 	case MCPP_COMPLEX128: return 16;
+	case MCPP_INVALID: break;  // compiler pacifier
     }
     
-    throw std::runtime_error("mcpp_arrays::mcpp_sizeof(): unrecognized typeid");
+    throw std::runtime_error("mcpp_arrays::mcpp_sizeof(): invalid typeid");
 }
 
 
