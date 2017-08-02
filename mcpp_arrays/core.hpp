@@ -44,15 +44,15 @@ enum mcpp_typeid {
 // and releases it (via its destructor) when the last
 // reference goes away.
 
-struct mcpp_array_reaper {
-    virtual ~mcpp_array_reaper() { }
+struct mcpp_reaper {
+    virtual ~mcpp_reaper() { }
 };
 
 
 // malloc_reaper: most common case, where allocated
 // memory is released with free().
 
-struct malloc_reaper : public mcpp_array_reaper {
+struct malloc_reaper : public mcpp_reaper {
     void *p = nullptr;
     malloc_reaper(void *p_) : p(p_) { }
     virtual ~malloc_reaper() { free(p); p = nullptr; }

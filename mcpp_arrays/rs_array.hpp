@@ -24,7 +24,7 @@ struct rs_array {
     ssize_t itemsize = 0;
     ssize_t size = 0;
 
-    std::shared_ptr<mcpp_array_reaper> reaper;
+    std::shared_ptr<mcpp_reaper> reaper;
 
     static constexpr int ndim_inline = 6;
     ssize_t _inline_sbuf[2*ndim_inline];
@@ -41,10 +41,10 @@ struct rs_array {
     template<typename U> rs_array(const rs_array<U> &a, const char *where=nullptr);
     template<typename U> rs_array<T> &operator=(const rs_array<U> &a);
 
-    // "Incomplete" constructor, allocates shape/stride arrays but does not
-    // initialize them!  Must be followed by call to _finalize_shape_and_strides().    
+    // "Incomplete" constructor, allocates shape/stride arrays but does not initialize them!
+    // Must be followed by call to _finalize_shape_and_strides() before construction is complete.
     rs_array(int ndim, T *data, mcpp_typeid dtype,
-	     const std::shared_ptr<mcpp_array_reaper> &reaper,
+	     const std::shared_ptr<mcpp_reaper> &reaper,
 	     const char *where=nullptr);
 
     // Helper functions used in constructors.
@@ -153,7 +153,7 @@ rs_array<T> &rs_array<T>::operator=(const rs_array<U> &a)
 
 template<typename T>
 rs_array<T>::rs_array(int ndim_, T *data_, mcpp_typeid dtype_,
-		      const std::shared_ptr<mcpp_array_reaper> &reaper_,
+		      const std::shared_ptr<mcpp_reaper> &reaper_,
 		      const char *where) :
     data(data_),
     dtype(check_dtype<T>(dtype_, where)),
