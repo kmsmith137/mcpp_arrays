@@ -47,6 +47,9 @@ struct rs_array {
 	     const std::shared_ptr<mcpp_reaper> &reaper,
 	     const char *where=nullptr);
 
+    // Need to explicitly delegate copy constructor to templated version above.
+    rs_array(rs_array<T> &a) : rs_array(a,nullptr) { }
+
     // Helper functions used in constructors.
     void _finalize_shape_and_strides(const char *where=nullptr);
     void _allocate(const ssize_t *shape_, bool zero);
