@@ -194,27 +194,29 @@ inline int check_ndim(int ndim, const char *where = nullptr)
 
 // check_dtype, (T != void) version
 template<typename T>
-inline void check_dtype(mcpp_typeid dtype, const char *where = nullptr)
+inline mcpp_typeid check_dtype(mcpp_typeid dtype, const char *where = nullptr)
 {
-    if (dtype != mcpp_type<T>::id) {
-	std::stringstream ss;
-	ss << (where ? where : "mcpp_arrays")
-	   << ": expected type " << mcpp_type<T>::id << " (" << mcpp_typestr(mcpp_type<T>::id) << ")"
-	   << ", got type " << dtype << " (" << mcpp_typestr(dtype) << ")";
-	throw std::runtime_error(ss.str());
-    }
+    if (dtype == mcpp_type<T>::id)
+	return dtype;
+
+    std::stringstream ss;
+    ss << (where ? where : "mcpp_arrays")
+       << ": expected type " << mcpp_type<T>::id << " (" << mcpp_typestr(mcpp_type<T>::id) << ")"
+       << ", got type " << dtype << " (" << mcpp_typestr(dtype) << ")";
+    throw std::runtime_error(ss.str());
 }
 
 // check_dtype, (T == void) version
 template<>
-inline void check_dtype<void> (mcpp_typeid dtype, const char *where)
+inline mcpp_typeid check_dtype<void> (mcpp_typeid dtype, const char *where)
 {
-    if (!mcpp_typeid_is_valid(dtype)) {
-	std::stringstream ss;
-	ss << (where ? where : "mcpp_arrays")
-	   << ": invalid mcpp_arrays::mcpp_typeid " << dtype;
-	throw std::runtime_error(ss.str());	
-    }
+    if (mcpp_typeid_is_valid(dtype))
+	return dtype;
+
+    std::stringstream ss;
+    ss << (where ? where : "mcpp_arrays")
+       << ": invalid mcpp_arrays::mcpp_typeid " << dtype;
+    throw std::runtime_error(ss.str());	
 }
 
 inline void *aligned_malloc(ssize_t nbytes, bool zero=true, size_t nalign=128)
