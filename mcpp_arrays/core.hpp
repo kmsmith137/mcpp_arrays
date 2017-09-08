@@ -40,28 +40,6 @@ enum mcpp_typeid {
 };
 
 
-// Virtual base class which "owns" allocated memory,
-// and releases it (via its destructor) when the last
-// reference goes away.
-
-struct mcpp_reaper {
-    virtual ~mcpp_reaper() { }
-};
-
-
-// malloc_reaper: most common case, where allocated
-// memory is released with free().
-
-struct malloc_reaper : public mcpp_reaper {
-    void *p = nullptr;
-    malloc_reaper(void *p_) : p(p_) { }
-    virtual ~malloc_reaper() { free(p); p = nullptr; }
-};
-
-
-// -------------------------------------------------------------------------------------------------
-
-
 inline bool mcpp_typeid_is_valid(mcpp_typeid id)
 {
     return (id >= MCPP_INT8) && (id < MCPP_INVALID);
@@ -89,33 +67,29 @@ inline const char *mcpp_typestr(mcpp_typeid id)
     return "invalid mcpp_arrays::mcpp_typeid";
 }
 
-template<typename T>
-inline ssize_t mcpp_sizeof(mcpp_typeid id)
+
+inline void *aligned_malloc(ssize_t nbytes, bool zero=true, size_t nalign=128)
 {
-    return sizeof(T);
+    if (nbytes <= 0)
+	return nullptr;
+
+    void *p = NULL;
+    if (posix_memalign(&p, nalign, nbytes) != 0)
+	throw std::runtime_error("couldn't allocate memory");
+
+    if (zero)
+	memset(p, 0, nbytes);
+
+    return p;
 }
 
-template<>
-inline ssize_t mcpp_sizeof<void> (mcpp_typeid id)
+
+template<typename T>
+inline T *aligned_alloc(ssize_t nelts, bool zero=true, size_t nalign=128)
 {
-    switch (id) {
-	case MCPP_INT8: return 1;
-	case MCPP_INT16: return 2;
-	case MCPP_INT32: return 4;
-	case MCPP_INT64: return 8;
-	case MCPP_UINT8: return 1;
-	case MCPP_UINT16: return 2;
-	case MCPP_UINT32: return 4;
-	case MCPP_UINT64: return 8;
-	case MCPP_FLOAT32: return 4;
-	case MCPP_FLOAT64: return 8;
-	case MCPP_COMPLEX64: return 8;
-	case MCPP_COMPLEX128: return 16;
-	case MCPP_INVALID: break;  // compiler pacifier
-    }
-    
-    throw std::runtime_error("mcpp_arrays::mcpp_sizeof(): invalid typeid");
+    return reinterpret_cast<T *> (aligned_malloc(nelts * sizeof(T), zero, nalign));
 }
+
 
 
 // -------------------------------------------------------------------------------------------------
@@ -146,10 +120,9 @@ struct is_mcpp_type<void,VoidAllowed> { static constexpr bool value = VoidAllowe
 
 // -------------------------------------------------------------------------------------------------
 //
-// The boilerplate below defines mcpp_type<T>::id, the compile-time typeid corresponding to C++ type T.
+// mcpp_type<T>::id
 //
-// FIXME: is there a way (using static_assert?) to get a helpful compile-time error if
-// mcpp_type<T> is instantiated for an invalid type T?
+// This is the typeid corresponding to C++ type T (computed at compile-time).
 
 
 template<typename T, 
@@ -179,22 +152,23 @@ template<typename T> struct mcpp_type<T,16,false,false,false,true> { static cons
 
 // -------------------------------------------------------------------------------------------------
 //
-// Intended as helpers for constructors
+// _set_dtype<T> (dtype)
+// _set_itemsize<T> (dtype)
+//
+// These are called in rs_array<T> constructors, when caller tries to construct an array with specified dtype.
+//
+//   - if T is void, then:
+//        _set_dtype<T>(dtype)      returns 'dtype'
+//        _set_itemsize<T>(dtype)   returns "sizeof(dtype)" from a lookup table
+//
+//   - if T is non-void, then:
+//        _set_dtype<T>(dtype)      throws an exception if (dtype != mcpp_type<T>::id), else returns 'dtype'
+//        _set_itemsize<T>(dtype)   returns sizeof(T) without checking 'dtype' (assuming _set_dtype() has already beeen called)
 
 
-inline int check_ndim(int ndim, const char *where = nullptr)
-{
-    if (ndim < 0)
-	throw std::runtime_error(std::string(where ? where : "mcpp_arrays") + ": attempt to create array with ndim < 0");
-    if (ndim > max_allowed_ndim)
-	throw std::runtime_error(std::string(where ? where : "mcpp_arrays") + ": attempt to create array with ndim > mcpp_arrays::max_allowed_ndim");
-    return ndim;
-}
-
-
-// check_dtype, (T != void) version
+// _set_dtype(), non-void version
 template<typename T>
-inline mcpp_typeid check_dtype(mcpp_typeid dtype, const char *where = nullptr)
+inline mcpp_typeid _set_dtype(mcpp_typeid dtype, const char *where = nullptr)
 {
     if (dtype == mcpp_type<T>::id)
 	return dtype;
@@ -206,10 +180,12 @@ inline mcpp_typeid check_dtype(mcpp_typeid dtype, const char *where = nullptr)
     throw std::runtime_error(ss.str());
 }
 
-// check_dtype, (T == void) version
+
+// _set_dtype(), void version
 template<>
-inline mcpp_typeid check_dtype<void> (mcpp_typeid dtype, const char *where)
+inline mcpp_typeid _set_dtype<void> (mcpp_typeid dtype, const char *where)
 {
+    // mcpp_typeid_is_valid() just does range-checking.
     if (mcpp_typeid_is_valid(dtype))
 	return dtype;
 
@@ -219,26 +195,36 @@ inline mcpp_typeid check_dtype<void> (mcpp_typeid dtype, const char *where)
     throw std::runtime_error(ss.str());	
 }
 
-inline void *aligned_malloc(ssize_t nbytes, bool zero=true, size_t nalign=128)
+
+// _set_itemsize(), non-void version
+template<typename T>
+inline ssize_t _set_itemsize(mcpp_typeid id)
 {
-    if (nbytes <= 0)
-	return nullptr;
-
-    void *p = NULL;
-    if (posix_memalign(&p, nalign, nbytes) != 0)
-	throw std::runtime_error("couldn't allocate memory");
-
-    if (zero)
-	memset(p, 0, nbytes);
-
-    return p;
+    return sizeof(T);
 }
 
 
-template<typename T>
-inline T *aligned_alloc(ssize_t nelts, bool zero=true, size_t nalign=128)
+// _set_itemsize(), void version
+template<>
+inline ssize_t _set_itemsize<void> (mcpp_typeid id)
 {
-    return reinterpret_cast<T *> (aligned_malloc(nelts * sizeof(T), zero, nalign));
+    switch (id) {
+	case MCPP_INT8: return 1;
+	case MCPP_INT16: return 2;
+	case MCPP_INT32: return 4;
+	case MCPP_INT64: return 8;
+	case MCPP_UINT8: return 1;
+	case MCPP_UINT16: return 2;
+	case MCPP_UINT32: return 4;
+	case MCPP_UINT64: return 8;
+	case MCPP_FLOAT32: return 4;
+	case MCPP_FLOAT64: return 8;
+	case MCPP_COMPLEX64: return 8;
+	case MCPP_COMPLEX128: return 16;
+	case MCPP_INVALID: break;  // compiler pacifier
+    }
+    
+    throw std::runtime_error("mcpp_arrays::_set_itemsize(): invalid typeid");
 }
 
 
